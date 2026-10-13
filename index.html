@@ -1,0 +1,1108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>실로폰 연주</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+/* ───────── 디자인 토큰 (DESIGN-apple.md) ───────── */
+:root{
+  --primary:#0066cc; --primary-focus:#0071e3; --primary-on-dark:#2997ff;
+  --ink:#1d1d1f; --on-dark:#ffffff; --body-muted:#cccccc;
+  --ink-80:#333333; --ink-48:#7a7a7a;
+  --divider-soft:#f0f0f0; --hairline:#e0e0e0;
+  --canvas:#ffffff; --parchment:#f5f5f7; --pearl:#fafafc;
+  --tile-1:#272729; --black:#000000; --chip:rgba(210,210,215,.64);
+  --r-sm:.5rem; --r-md:.6875rem; --r-lg:1.125rem; --pill:9999px;
+  --font:"Pretendard Variable",Pretendard,system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+/* TV 크기 보정: 1280px에서 16px → 1920px에서 24px */
+html{font-size:clamp(14px,min(1.25vw,2.22vh),30px)}
+*{box-sizing:border-box}
+body{
+  margin:0;height:100vh;height:100dvh;overflow:hidden;
+  background:var(--tile-1);color:var(--ink);
+  font-family:var(--font);-webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease}
+button:active{transform:scale(.95)}
+:focus-visible{outline:2px solid var(--primary-focus);outline-offset:2px}
+
+.app{display:flex;flex-direction:column;height:100%}
+
+/* ───────── 상단바 ───────── */
+.nav{
+  flex:0 0 auto;height:2.75rem;background:var(--black);color:var(--on-dark);
+  display:flex;align-items:center;justify-content:flex-end;padding:0 1.5rem;
+}
+.nav-links{display:flex;gap:.5rem}
+.nav-btn{
+  background:transparent;border:0;color:var(--on-dark);opacity:.88;
+  font-size:.8rem;padding:.45rem .8rem;border-radius:var(--r-sm);
+}
+body.fs .nav{display:none}
+
+/* ───────── 연주 무대 (어두운 타일) ───────── */
+.stage{
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;
+  padding:1.1rem 1rem .2rem;background:var(--tile-1);color:var(--on-dark);
+}
+.stage h1{margin:0;font-size:2.5rem;font-weight:600;line-height:1.1;letter-spacing:-.02em;text-align:center}
+.xylo-wrap{flex:1 1 auto;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;padding:.6rem 0 .3rem}
+#xylo{width:100%;height:100%;overflow:visible;touch-action:none;user-select:none;-webkit-user-select:none}
+#xylo .case{filter:drop-shadow(3px 5px 30px rgba(0,0,0,.22))}
+#xylo .bar{cursor:pointer;transform-box:fill-box;transform-origin:center}
+#xylo .bar .flash{opacity:0;pointer-events:none}
+#xylo .bar.hit{animation:barHit .3s cubic-bezier(.2,.8,.2,1)}
+#xylo .bar.hit .flash{animation:barFlash .45s ease-out}
+@keyframes barHit{0%{transform:scale(.95)}100%{transform:scale(1)}}
+@keyframes barFlash{0%{opacity:.42}100%{opacity:0}}
+#xylo .mallet{pointer-events:none}
+#xylo text{font-family:var(--font);pointer-events:none}
+
+/* ───────── 하단 악보바 (반투명 + 흐림) ───────── */
+.dock{
+  flex:0 0 auto;position:relative;z-index:2;height:7.4rem;
+  display:flex;align-items:center;gap:1.5rem;padding:0 1.5rem 0 2rem;
+  background:rgba(245,245,247,.86);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+}
+.score{flex:1 1 auto;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:center;gap:.25rem;padding:.4rem 0 .55rem}
+#strip{
+  position:relative;flex:1 1 auto;min-height:0;display:flex;align-items:center;gap:.3rem;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;white-space:nowrap;padding:0 .5rem;
+  cursor:grab;touch-action:pan-x;user-select:none;-webkit-user-select:none;
+}
+#strip.dragging{cursor:grabbing}
+#strip .tk{cursor:pointer}
+#strip.dragging .tk{cursor:grabbing}
+/* 악보 이동 슬라이더 */
+#stripSlider{
+  -webkit-appearance:none;appearance:none;width:100%;height:1.1rem;margin:0;background:transparent;cursor:pointer;
+}
+#stripSlider[hidden]{display:block;visibility:hidden}
+#stripSlider::-webkit-slider-runnable-track{height:.3rem;border-radius:var(--pill);background:rgba(0,0,0,.12)}
+#stripSlider::-moz-range-track{height:.3rem;border-radius:var(--pill);background:rgba(0,0,0,.12)}
+#stripSlider::-webkit-slider-thumb{-webkit-appearance:none;width:3.2rem;height:1rem;margin-top:-.35rem;border:0;border-radius:var(--pill);background:var(--primary)}
+#stripSlider::-moz-range-thumb{width:3.2rem;height:1rem;border:0;border-radius:var(--pill);background:var(--primary)}
+#strip::-webkit-scrollbar{display:none}
+.empty{font-size:1.05rem;color:var(--ink-48)}
+.tk{
+  position:relative;flex:0 0 auto;display:inline-flex;flex-direction:column;align-items:center;
+  padding:.5rem .62rem .55rem;border:2px solid transparent;border-radius:var(--pill);
+  font-size:2.15rem;font-weight:600;line-height:1;letter-spacing:-.02em;color:var(--ink);
+  transition:opacity .2s ease,border-color .15s ease,background-color .15s ease;
+}
+.tk .sw{display:block;width:1.3rem;height:.3rem;border-radius:.15rem;margin-top:.32rem}
+.tk.hi::before{content:"";position:absolute;top:.12rem;left:50%;width:.36rem;height:.36rem;margin-left:-.18rem;border-radius:50%;background:var(--ink)}
+.tk.lo::after{content:"";position:absolute;bottom:.02rem;left:50%;width:.36rem;height:.36rem;margin-left:-.18rem;border-radius:50%;background:var(--ink)}
+.tk.hold,.tk.rest{font-weight:400;color:var(--ink-48)}
+.tk.hold .sw,.tk.rest .sw{background:transparent}
+.tk.err{color:var(--ink-48);text-decoration:line-through}
+.tk.now{border-color:var(--primary-focus);background:var(--canvas)}
+.tk.past{opacity:.35}
+.grp{display:inline-flex;flex:0 0 auto;align-items:center;gap:0;border-bottom:2px solid rgba(0,0,0,.16);border-radius:.4rem;padding:0 .1rem}
+.grp .tk{padding-left:.35rem;padding-right:.35rem}
+.sep{flex:0 0 auto;width:2px;height:2.4rem;margin:0 .45rem;border-radius:1px;background:rgba(0,0,0,.14)}
+.sep.line{height:3.2rem;margin:0 .9rem;background:rgba(0,0,0,.28)}
+.sep.para{height:3.6rem;width:4px;margin:0 1.4rem;background:rgba(0,0,0,.28)}
+
+.ctrls{flex:0 0 auto;display:flex;align-items:center;gap:.7rem}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:.55rem;min-height:3rem;
+  background:var(--primary);color:#fff;border:0;border-radius:var(--pill);
+  padding:.7rem 1.6rem;font-size:1.1rem;font-weight:400;letter-spacing:-.01em;
+}
+.btn-primary svg{width:1rem;height:1rem;fill:currentColor}
+.btn-pearl{
+  display:inline-flex;align-items:center;gap:.4rem;min-height:3rem;
+  background:var(--pearl);color:var(--ink-80);border:3px solid var(--divider-soft);border-radius:var(--r-md);
+  padding:.45rem .95rem;font-size:.95rem;font-weight:400;
+}
+
+/* ───────── 편집 패널 (밝은 타일) ───────── */
+.scrim{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .3s ease}
+.scrim.open{opacity:1;pointer-events:auto}
+.panel{
+  position:fixed;z-index:10;top:0;right:0;bottom:0;width:min(34rem,94vw);
+  display:flex;flex-direction:column;background:var(--parchment);color:var(--ink);
+  transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1);
+}
+.panel.open{transform:none}
+.panel header{display:flex;align-items:center;justify-content:space-between;padding:1.4rem 1.5rem .6rem}
+.panel h2{margin:0;font-size:1.7rem;font-weight:600;letter-spacing:-.02em}
+.icon-btn{width:2.75rem;height:2.75rem;border-radius:50%;border:0;background:var(--chip);color:var(--ink);font-size:1.1rem;display:grid;place-items:center}
+.panel .scroll{flex:1 1 auto;overflow-y:auto;padding:.4rem 1.5rem 1.5rem}
+.panel h3{margin:1rem 0 .6rem;font-size:.875rem;font-weight:600;letter-spacing:-.01em;color:var(--ink-80)}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{
+  border:1px solid var(--hairline);background:var(--canvas);color:var(--ink);
+  border-radius:var(--pill);padding:.6rem 1rem;font-size:.875rem;
+}
+.chip.on{border:2px solid var(--primary-focus);padding:calc(.6rem - 1px) calc(1rem - 1px)}
+.chip.add{color:var(--primary)}
+.card{margin-top:1rem;background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:1.25rem}
+.lbl{display:block;font-size:.875rem;font-weight:600;color:var(--ink-80);margin:0 0 .45rem}
+.lbl+.field{margin-bottom:1rem}
+.field{
+  width:100%;font-family:inherit;font-size:1.0625rem;line-height:1.47;color:var(--ink);
+  background:var(--canvas);border:1px solid rgba(0,0,0,.12);border-radius:var(--r-sm);padding:.6rem .8rem;
+}
+.field.area{min-height:14rem;resize:vertical;font-size:1.15rem;line-height:1.7;border-radius:var(--r-lg);padding:.8rem 1rem}
+.caption{margin:.6rem 0 0;font-size:.875rem;line-height:1.43;color:var(--ink-48)}
+.errs{margin:.4rem 0 0;padding:0;list-style:none;font-size:.875rem;line-height:1.5;color:var(--ink)}
+.errs li::before{content:"⚠ "}
+.row{display:flex;gap:1.2rem;margin-top:.8rem}
+.link{background:none;border:0;padding:.2rem 0;color:var(--primary);font-size:.95rem}
+.link[hidden]{display:none}
+.set{display:flex;align-items:center;gap:1rem;min-height:3rem}
+.set+.set{border-top:1px solid var(--divider-soft)}
+.set span{flex:1 1 auto;font-size:1.0625rem}
+.set input[type=range]{flex:0 1 13rem;accent-color:var(--primary)}
+.set b{width:2.6rem;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.switch{position:relative;width:2.9rem;height:1.75rem;border:0;border-radius:var(--pill);background:#d2d2d7;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:.2rem;left:.2rem;width:1.35rem;height:1.35rem;border-radius:50%;background:#fff;transition:transform .2s ease}
+.switch[aria-checked="true"]{background:var(--primary)}
+.switch[aria-checked="true"]::after{transform:translateX(1.15rem)}
+.help table{width:100%;border-collapse:collapse;font-size:.875rem;line-height:1.43}
+.help td{padding:.4rem 0;border-top:1px solid var(--divider-soft);vertical-align:top}
+.help td:first-child{width:42%;font-weight:600;white-space:nowrap}
+.help h3{margin-top:0}
+.panel footer{padding:1rem 1.5rem 1.4rem;display:flex;justify-content:flex-end}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="nav">
+    <div class="nav-links">
+      <button class="nav-btn" id="btnEdit">편집</button>
+      <button class="nav-btn" id="btnFull">전체화면</button>
+    </div>
+  </nav>
+
+  <main class="stage">
+    <h1 id="songTitle">환희의 송가</h1>
+    <div class="xylo-wrap"><svg id="xylo" role="img" aria-label="25음 실로폰"></svg></div>
+  </main>
+
+  <footer class="dock">
+    <div class="score">
+      <div id="strip" aria-live="off"></div>
+      <input type="range" id="stripSlider" min="0" max="1000" value="0" aria-label="악보 이동">
+    </div>
+    <div class="ctrls">
+      <button class="btn-pearl" id="btnHome" aria-label="처음으로">■ 처음으로</button>
+      <button class="btn-pearl" id="btnPrev" aria-label="앞 음">◂ 앞 음</button>
+      <button class="btn-pearl" id="btnNext" aria-label="다음 음">다음 음 ▸</button>
+      <button class="btn-primary" id="btnPlay"></button>
+    </div>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="panel" id="panel" aria-hidden="true">
+  <header>
+    <h2>편집</h2>
+    <button class="icon-btn" id="btnClose" aria-label="닫기">✕</button>
+  </header>
+  <div class="scroll">
+    <h3>곡 고르기</h3>
+    <div class="chips" id="chips"></div>
+
+    <section class="card">
+      <label class="lbl" for="titleIn">제목</label>
+      <input class="field" id="titleIn" type="text" autocomplete="off">
+      <label class="lbl" for="textIn">계이름</label>
+      <textarea class="field area" id="textIn" spellcheck="false" autocomplete="off"></textarea>
+      <p class="caption" id="info"></p>
+      <ul class="errs" id="errs"></ul>
+      <div class="row">
+        <button class="link" id="btnRestore">원래 악보로 되돌리기</button>
+        <button class="link" id="btnDelete">이 곡 지우기</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="set"><span>빠르기</span><input type="range" id="tempo" min="40" max="160" step="2"><b id="tempoVal">90</b></div>
+      <div class="set"><span>메트로놈</span><button class="switch" id="swMetro" role="switch" aria-checked="false" aria-label="메트로놈"></button></div>
+      <div class="set"><span>반복 재생</span><button class="switch" id="swLoop" role="switch" aria-checked="false" aria-label="반복 재생"></button></div>
+    </section>
+
+    <section class="card help">
+      <h3>쓰는 법</h3>
+      <table>
+        <tr><td>도 레 미 파 솔 라 시</td><td>한 박씩 (띄어 쓰지 않아도 됨)</td></tr>
+        <tr><td>도' &nbsp;또는&nbsp; 높은도</td><td>높은 음 (오른쪽 음판)</td></tr>
+        <tr><td>시, &nbsp;또는&nbsp; 낮은시</td><td>낮은 음 (낮은라·낮은시)</td></tr>
+        <tr><td>도#</td><td>반음 올림 (파란 음판)</td></tr>
+        <tr><td>-</td><td>앞 음을 한 박 늘림</td></tr>
+        <tr><td>쉼 &nbsp;또는&nbsp; _</td><td>한 박 쉼</td></tr>
+        <tr><td>(도레)</td><td>한 박을 똑같이 나눠 침</td></tr>
+        <tr><td>| &nbsp;줄바꿈 &nbsp;빈 줄</td><td>마디·줄 구분 (소리에는 영향 없음)</td></tr>
+      </table>
+      <p class="caption">리모컨·키보드: 스페이스 재생/멈춤 · → 다음 음 · ← 앞 음 · Home 처음으로 · F 전체화면 · E 편집</p>
+    </section>
+  </div>
+  <footer><button class="btn-primary" id="btnApply">적용하고 닫기</button></footer>
+</aside>
+
+<script>
+(() => {
+'use strict';
+
+/* ═════════ 1. 곡 데이터 ═════════ */
+const DEFAULT_SONGS = [
+  { id: 'ode', title: '환희의 송가', tempo: 90, text:
+`미 미 파 솔 | 솔 파 미 레 | 도 도 레 미 | 미 - 레 레
+미 미 파 솔 | 솔 파 미 레 | 도 도 레 미 | 레 - 도 도
+레 레 미 도 | 레 (미파) 미 도 | 레 (미파) 미 레 | 도 레 레 -
+미 미 파 솔 | 솔 파 미 레 | 도 도 레 미 | 레 - 도 도` },
+  { id: 'xmas', title: '울면 안 돼', tempo: 100, text:
+`미 파 솔 솔 (라시) 도' 도' -
+미 파 솔 솔 솔 - 라 솔 파 파 파 -
+미 솔 도 미 - 레 파 시, 도 -
+
+미 파 솔 솔 솔 솔 솔 - 라 시 도' 도' 도' -
+미 파 솔 솔 솔 솔 라 솔 파 파 -
+미 솔 도 미 레 파 파 시, 도 -
+
+레' 도' 시 도' 라 라 라 라 -
+레' 도' 시 도' 라 라 라 라 라 -
+미' 레' 도#' 레' -
+시 시 시 - - 시 도' -
+레' 레' 도' 도' 시 라 솔 -
+
+미 파 솔 솔 (라시) 도' 도' -
+미 파 솔 솔 솔 - 라 솔 파 파 파 -
+미 솔 도 미 - 레 파 시, 도 -` }
+];
+
+/* ═════════ 2. 저장 ═════════ */
+const STORE_KEY = 'xylo.v1';
+const clone = o => JSON.parse(JSON.stringify(o));
+function loadState() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { s = null; }
+  if (!s || !Array.isArray(s.songs)) s = { songs: clone(DEFAULT_SONGS), cur: 'ode', metro: false, loop: false };
+  for (const d of DEFAULT_SONGS) if (!s.songs.some(x => x.id === d.id)) s.songs.push(clone(d));
+  if (!s.songs.some(x => x.id === s.cur)) s.cur = s.songs[0].id;
+  return s;
+}
+const state = loadState();
+let saveTimer = 0;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }, 250);
+}
+const curSong = () => state.songs.find(s => s.id === state.cur);
+
+/* ═════════ 3. 실로폰 음판 데이터 (실물 25음: 낮은라 ~ 높은라) ═════════ */
+const BASE = { '도': 72, '레': 74, '미': 76, '파': 77, '솔': 79, '라': 81, '시': 83 };
+const COLORS = { '도': '#D7262B', '레': '#EE7A2A', '미': '#F7D320', '파': '#3BA846', '솔': '#2DB4DA', '라': '#3A3594', '시': '#7B2E8C' };
+const SHARP_COLOR = '#2458B8';
+const NATURALS = [['라',-1],['시',-1],['도',0],['레',0],['미',0],['파',0],['솔',0],['라',0],['시',0],['도',1],['레',1],['미',1],['파',1],['솔',1],['라',1]];
+
+const NW = 80, NSTEP = 96, NX0 = 88, NTOP = 300, NLEN0 = 440, NLEN1 = 250, SBOT = 282;
+const nCx = i => NX0 + NW / 2 + i * NSTEP;
+const nLen = i => NLEN0 - (NLEN0 - NLEN1) * i / 14;
+const S_CX0 = (nCx(0) + nCx(1)) / 2, S_CX1 = (nCx(13) + nCx(14)) / 2;
+const sLen = cx => 210 - 60 * (cx - S_CX0) / (S_CX1 - S_CX0);
+
+const bars = [];
+const barByMidi = new Map();
+NATURALS.forEach(([name, oct], i) => {
+  const len = nLen(i), cx = nCx(i), top = NTOP;
+  const sy = top + len * 0.62;
+  bars.push({ midi: BASE[name] + 12 * oct, label: name, sharp: false, color: COLORS[name],
+    cx, x: cx - NW / 2, w: NW, top, len, labelY: top + len * 0.33, sx: cx, sy, hx: cx, hy: sy + 72 });
+});
+for (let i = 0; i < 14; i++) {
+  const a = bars[i], b = bars[i + 1];
+  if (b.midi - a.midi !== 2) continue;
+  const cx = (a.cx + b.cx) / 2, len = sLen(cx), top = SBOT - len;
+  const sy = top + len * 0.68;
+  bars.push({ midi: a.midi + 1, label: a.label + '#', sharp: true, color: SHARP_COLOR,
+    cx, x: cx - NW / 2, w: NW, top, len, labelY: top + len * 0.36, sx: cx, sy, hx: cx, hy: sy + 72 });
+}
+bars.forEach(b => barByMidi.set(b.midi, b));
+
+/* ═════════ 4. 계이름 해석 ═════════ */
+const NOTE_CH = '도레미파솔라시';
+const ALIAS = { '쏠': '솔', '씨': '시' };
+const noteAt = (src, j) => { const c = ALIAS[src[j]] || src[j]; return c && NOTE_CH.includes(c) ? c : null; };
+const HOLD_CH = '-–—~ㅡ';
+
+function lex(src) {
+  const out = [];
+  let i = 0, line = 1;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '\n') {
+      const last = out[out.length - 1];
+      if (last && (last.k === 'nl' || last.k === 'para')) last.k = 'para';
+      else out.push({ k: 'nl', line });
+      line++; i++; continue;
+    }
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === '|' || c === '｜') { out.push({ k: 'bar', line }); i++; continue; }
+    if (c === '(' || c === '（') { out.push({ k: '(', line, text: c }); i++; continue; }
+    if (c === ')' || c === '）') { out.push({ k: ')', line, text: c }); i++; continue; }
+    if (HOLD_CH.includes(c)) { out.push({ k: 'hold', line }); i++; continue; }
+    if (c === '_' || c === '쉼') { out.push({ k: 'rest', line }); i++; continue; }
+
+    let j = i, oct = 0;
+    if (src.startsWith('높은', j)) { oct = 1; j += 2; }
+    else if (src.startsWith('낮은', j)) { oct = -1; j += 2; }
+    if (oct !== 0) while (src[j] === ' ') j++;
+    const name = noteAt(src, j);
+    if (name) {
+      j++;
+      let acc = 0;
+      for (;;) {
+        const m = src[j];
+        if (m === "'" || m === '’' || m === '′' || m === '`') { oct++; j++; }
+        else if (m === ',' || m === '，') { oct--; j++; }
+        else if (m === '#' || m === '♯') { acc++; j++; }
+        else if (m === '♭' || m === 'b') { acc--; j++; }
+        else break;
+      }
+      out.push({ k: 'note', line, name, oct, acc, text: src.slice(i, j) });
+      i = j; continue;
+    }
+    j = i;
+    while (j < src.length && !/\s/.test(src[j]) && !'|｜()（）_쉼'.includes(src[j]) && !HOLD_CH.includes(src[j])
+           && !noteAt(src, j) && !src.startsWith('높은', j) && !src.startsWith('낮은', j)) j++;
+    if (j === i) j = i + 1;
+    out.push({ k: 'err', line, text: src.slice(i, j) });
+    i = j;
+  }
+  return out;
+}
+
+function parse(src) {
+  const lx = lex(src);
+  const tokens = [], events = [], errors = [];
+  let beat = 0;
+  const err = (u, msg) => errors.push({ line: u.line, text: u.text || '', msg });
+  const isTimed = u => u.k === 'note' || u.k === 'rest' || u.k === 'hold';
+
+  function timed(u, d) {
+    const tk = { k: u.k, start: beat, dur: d };
+    if (u.k === 'note') {
+      const midi = BASE[u.name] + 12 * u.oct + u.acc;
+      tk.label = u.name + (u.acc > 0 ? '#'.repeat(u.acc) : u.acc < 0 ? '♭' : '');
+      tk.oct = u.oct;
+      tk.bar = barByMidi.get(midi) || null;
+      if (!tk.bar) err(u, '이 실로폰에 없는 음');
+      const ev = { midi: tk.bar ? midi : null, start: beat, dur: d, token: tk };
+      events.push(ev); tk.ev = ev;
+    } else if (u.k === 'rest') {
+      const ev = { midi: null, start: beat, dur: d, token: tk };
+      events.push(ev); tk.ev = ev;
+    } else {
+      const last = events[events.length - 1];
+      if (last) { last.dur += d; tk.ev = last; }
+      else { const ev = { midi: null, start: beat, dur: d, token: tk }; events.push(ev); tk.ev = ev; }
+    }
+    beat += d;
+    tokens.push(tk);
+  }
+
+  for (let k = 0; k < lx.length; k++) {
+    const u = lx[k];
+    if (isTimed(u)) timed(u, 1);
+    else if (u.k === 'nl' || u.k === 'para' || u.k === 'bar') tokens.push({ k: u.k });
+    else if (u.k === 'err') { err(u, '모르는 글자'); tokens.push({ k: 'err', text: u.text }); }
+    else if (u.k === ')') err(u, '여는 괄호 ( 가 없음');
+    else if (u.k === '(') {
+      const inner = [];
+      let m = k + 1, closed = false;
+      for (; m < lx.length; m++) {
+        const v = lx[m];
+        if (v.k === ')') { closed = true; break; }
+        if (v.k === 'nl' || v.k === 'para' || v.k === 'bar' || v.k === '(') break;
+        inner.push(v);
+      }
+      if (!closed) err(u, '괄호 ) 를 닫지 않음');
+      inner.filter(v => v.k === 'err').forEach(v => err(v, '모르는 글자'));
+      const tim = inner.filter(isTimed);
+      if (tim.length) {
+        tokens.push({ k: 'gs' });
+        const d = 1 / tim.length;
+        tim.forEach(v => timed(v, d));
+        tokens.push({ k: 'ge' });
+      }
+      k = closed ? m : m - 1;
+    }
+  }
+  return { tokens, events, errors, totalBeats: beat, playable: events.filter(e => e.midi != null) };
+}
+
+/* ═════════ 5. 실로폰 그리기 (SVG) ═════════ */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function sv(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const svg = document.getElementById('xylo');
+
+function buildXylophone() {
+  svg.setAttribute('viewBox', '14 22 1572 808');
+  const defs = sv('defs', {}, svg);
+  const g = sv('linearGradient', { id: 'sheen', x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
+  sv('stop', { offset: 0, 'stop-color': '#fff', 'stop-opacity': .2 }, g);
+  sv('stop', { offset: .38, 'stop-color': '#fff', 'stop-opacity': .05 }, g);
+  sv('stop', { offset: 1, 'stop-color': '#000', 'stop-opacity': .13 }, g);
+
+  // 케이스
+  const cs = sv('g', { class: 'case' }, svg);
+  sv('rect', { x: 20, y: 28, width: 1560, height: 772, rx: 64, fill: '#FFB300' }, cs);
+  sv('rect', { x: 46, y: 50, width: 1508, height: 726, rx: 46, fill: '#FFA600' }, cs);
+  sv('rect', { x: 590, y: 708, width: 720, height: 40, rx: 20, style: 'fill:var(--tile-1)' }, cs);
+  for (const x of [190, 1330]) {
+    sv('rect', { x, y: 776, width: 80, height: 50, rx: 8, fill: '#D7262B' }, cs);
+    sv('rect', { x: x + 16, y: 788, width: 48, height: 20, rx: 4, fill: '#A91C20' }, cs);
+  }
+
+  // 펠트 받침
+  const rails = sv('g', {}, svg);
+  const rail = (x1, y1, x2, y2) => sv('line', { x1, y1, x2, y2, stroke: '#4A4A4A', 'stroke-width': 16, 'stroke-linecap': 'round' }, rails);
+  const ia = -0.45, ib = 14.45;
+  for (const f of [0.13, 0.87]) rail(nCx(ia), NTOP + nLen(ia) * f, nCx(ib), NTOP + nLen(ib) * f);
+  const sa = S_CX0 - 44, sb = S_CX1 + 44;
+  for (const f of [0.13, 0.87]) rail(sa, SBOT - sLen(sa) * (1 - f), sb, SBOT - sLen(sb) * (1 - f));
+
+  // 음판 (반음 → 흰 음판 순서)
+  const barLayer = sv('g', {}, svg);
+  [...bars.filter(b => b.sharp), ...bars.filter(b => !b.sharp)].forEach(b => drawBar(b, barLayer));
+
+  // 채
+  for (const H of [hands.L, hands.R]) buildMallet(H);
+}
+
+function drawBar(b, parent) {
+  const g = sv('g', { class: 'bar' }, parent);
+  const r = { x: b.x, y: b.top, width: b.w, height: b.len, rx: 7 };
+  sv('rect', { ...r, fill: b.color }, g);
+  sv('rect', { ...r, fill: 'url(#sheen)' }, g);
+  sv('rect', { ...r, fill: '#fff', class: 'flash' }, g);
+  for (const f of [0.13, 0.87]) {
+    const cy = b.top + b.len * f;
+    sv('circle', { cx: b.cx, cy, r: 12, fill: '#F2DC1B' }, g);
+    sv('circle', { cx: b.cx, cy, r: 6.5, fill: '#D6D6DB' }, g);
+    sv('circle', { cx: b.cx - 2, cy: cy - 2, r: 2.2, fill: '#fff', 'fill-opacity': .9 }, g);
+  }
+  sv('circle', { cx: b.cx, cy: b.labelY, r: b.sharp ? 27 : 30, fill: '#fff', 'fill-opacity': .9,
+    stroke: '#1d1d1f', 'stroke-opacity': .5, 'stroke-width': 2.2 }, g);
+  const t = sv('text', { x: b.cx, y: b.labelY, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-size': b.sharp ? 23 : 32, 'font-weight': 600, fill: '#1d1d1f' }, g);
+  t.textContent = b.label;
+  g.addEventListener('pointerdown', e => { e.preventDefault(); manualHit(b); });
+  b.el = g;
+}
+
+function flashBar(b) {
+  const g = b.el;
+  g.classList.remove('hit');
+  void g.getBoundingClientRect();
+  g.classList.add('hit');
+}
+
+/* ═════════ 6. 채 동작 ═════════ */
+const hands = {
+  L: { dir: -1, strikes: [], home: null },
+  R: { dir: 1, strikes: [], home: null }
+};
+hands.L.home = { x: barByMidi.get(72).hx, y: barByMidi.get(72).hy };
+hands.R.home = { x: barByMidi.get(79).hx, y: barByMidi.get(79).hy };
+let lastHand = hands.R;
+let allStrikes = [];
+
+function buildMallet(H) {
+  const g = sv('g', { class: 'mallet' }, svg);
+  H.sShadow = sv('line', { stroke: '#000', 'stroke-opacity': .2, 'stroke-width': 12, 'stroke-linecap': 'round' }, g);
+  H.hShadow = sv('ellipse', { fill: '#000' }, g);
+  H.stick = sv('line', { stroke: '#E7CFA4', 'stroke-width': 12, 'stroke-linecap': 'round' }, g);
+  H.head = sv('circle', { fill: '#FFC21A', stroke: '#D99A00', 'stroke-width': 3 }, g);
+  H.hi = sv('circle', { fill: '#fff', 'fill-opacity': .55 }, g);
+}
+
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const lerp = (a, b, u) => a + (b - a) * u;
+const easeOut = u => 1 - (1 - u) * (1 - u);
+const easeInOut = u => u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+
+function malletState(H, t) {
+  const a = H.strikes;
+  let prev = null, next = null;
+  for (let k = 0; k < a.length; k++) { if (a[k].t <= t) prev = a[k]; else { next = a[k]; break; } }
+  const HOV = 0.55, TAU = 0.045;
+  const gap = prev && next ? next.t - prev.t : Infinity;
+  let ax, ay;
+  if (prev) { const e = easeOut(clamp01((t - prev.t) / 0.18)); ax = lerp(prev.x, prev.hx, e); ay = lerp(prev.y, prev.hy, e); }
+  else { ax = H.home.x; ay = H.home.y; }
+  let x = ax, y = ay;
+  if (next) {
+    if (prev && gap < 0.36) {
+      const e = easeInOut(clamp01((t - prev.t) / gap));
+      x = lerp(prev.x, next.x, e); y = lerp(prev.y, next.y, e);
+    } else {
+      const td = prev ? Math.min(0.45, gap - 0.18) : 0.45;
+      const st = next.t - td;
+      if (t >= st) {
+        const e = easeInOut(clamp01((t - st) / td));
+        const fx = prev ? prev.hx : H.home.x, fy = prev ? prev.hy : H.home.y;
+        x = lerp(fx, next.x, e); y = lerp(fy, next.y, e);
+      }
+    }
+  }
+  let h = prev ? HOV * (1 - Math.exp(-(t - prev.t) / TAU)) : HOV;
+  if (next) {
+    const W = prev ? Math.min(0.3, gap * 0.8) : 0.3;
+    const d = next.t - t;
+    if (d < W) {
+      const ph = 1 - d / W;
+      const h0 = prev ? HOV * (1 - Math.exp(-(gap - W) / TAU)) : HOV;
+      h = ph < 0.55 ? h0 + (1 - h0) * Math.sin(ph / 0.55 * Math.PI / 2)
+                    : Math.cos((ph - 0.55) / 0.45 * Math.PI / 2);
+    }
+  }
+  return { x, y, h };
+}
+
+function drawMallet(H, s) {
+  const { x, y, h } = s;
+  const hy = y - 16 * h, r = 25 * (1 + 0.32 * h);
+  const ex = x + H.dir * 105, ey = y + 300;
+  const shx = x + 10 * h, shy = y + 14 * h;
+  H.hShadow.setAttribute('cx', shx); H.hShadow.setAttribute('cy', shy);
+  H.hShadow.setAttribute('rx', 24); H.hShadow.setAttribute('ry', 20);
+  H.hShadow.setAttribute('fill-opacity', (0.34 - 0.18 * h).toFixed(3));
+  H.sShadow.setAttribute('x1', shx); H.sShadow.setAttribute('y1', shy);
+  H.sShadow.setAttribute('x2', ex + 6); H.sShadow.setAttribute('y2', ey + 8);
+  H.stick.setAttribute('x1', x); H.stick.setAttribute('y1', hy);
+  H.stick.setAttribute('x2', ex); H.stick.setAttribute('y2', ey);
+  H.head.setAttribute('cx', x); H.head.setAttribute('cy', hy); H.head.setAttribute('r', r);
+  H.hi.setAttribute('cx', x - r * .32); H.hi.setAttribute('cy', hy - r * .32); H.hi.setAttribute('r', r * .28);
+}
+
+function chooseHand(bar, t) {
+  const L = hands.L, R = hands.R;
+  const l = L.strikes[L.strikes.length - 1], r = R.strikes[R.strikes.length - 1];
+  const lx = l ? l.x : L.home.x, rx = r ? r.x : R.home.x;
+  const lt = l ? l.t : -9, rt = r ? r.t : -9;
+  let cL = Math.abs(bar.sx - lx), cR = Math.abs(bar.sx - rx);
+  if (bar.sx > rx + 1) cL += 500;
+  if (bar.sx < lx - 1) cR += 500;
+  if (t - lt < 0.2) cL += 300;
+  if (t - rt < 0.2) cR += 300;
+  if (lastHand === L) cL += 2; else cR += 2;
+  lastHand = cL <= cR ? L : R;
+  return lastHand;
+}
+
+function addStrike(bar, t) {
+  const H = chooseHand(bar, t);
+  const s = { t, bar, x: bar.sx, y: bar.sy, hx: bar.hx, hy: bar.hy };
+  const a = H.strikes;
+  a.push(s);
+  if (a.length > 1 && a[a.length - 2].t > t) a.sort((p, q) => p.t - q.t);
+  allStrikes.push(s);
+}
+
+function clearFutureStrikes(t) {
+  for (const H of [hands.L, hands.R]) H.strikes = H.strikes.filter(s => s.t <= t);
+  allStrikes = allStrikes.filter(s => s.t <= t);
+}
+
+/* ═════════ 7. 철금 소리 ═════════ */
+let ctx = null, bus = null, liveBus = null;
+function ensureAudio() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC({ latencyHint: 'interactive' });
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.ratio.value = 4;
+    comp.connect(ctx.destination);
+    const master = ctx.createGain(); master.gain.value = 0.9; master.connect(comp);
+    bus = ctx.createGain(); bus.connect(master);
+    const conv = ctx.createConvolver(); conv.buffer = impulse(1.8);
+    const wet = ctx.createGain(); wet.gain.value = 0.22;
+    bus.connect(conv); conv.connect(wet); wet.connect(master);
+    liveBus = ctx.createGain(); liveBus.connect(bus);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+}
+function impulse(sec) {
+  const n = Math.floor(ctx.sampleRate * sec), buf = ctx.createBuffer(2, n, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+  }
+  return buf;
+}
+const PARTIALS = [[1, 1, 2.2], [2.756, .3, .7], [5.404, .12, .3], [8.933, .05, .14]];
+function voice(midi, t, dest) {
+  const f = 440 * Math.pow(2, (midi - 69) / 12);
+  const k = Math.min(1.3, Math.pow(700 / f, 0.35));
+  for (const [ratio, amp, dec] of PARTIALS) {
+    const fr = f * ratio;
+    if (fr > ctx.sampleRate / 2 - 500) continue;
+    const d = dec * k;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = fr;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(amp * 0.22, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(dest);
+    o.start(t); o.stop(t + d + 0.05);
+  }
+}
+function tick(t, dest) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine'; o.frequency.value = 1700;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.14, t + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  o.connect(g); g.connect(dest);
+  o.start(t); o.stop(t + 0.07);
+}
+const latency = () => ctx ? Math.min(0.25, Math.max(0, (ctx.outputLatency || 0) + (ctx.baseLatency || 0))) : 0;
+const vnow = () => ctx ? ctx.currentTime - latency() : 0;
+
+/* ═════════ 8. 재생 제어 ═════════ */
+let parsed = parse('');
+const P = { playing: false, session: null, spb: 60 / 90, passStart: 0, fromBeat: 0, endT: 0, nextPass: null, pausedBeat: 0 };
+let stepPtr = 0;
+
+function newSession() { const g = ctx.createGain(); g.connect(bus); return g; }
+function killSession() {
+  if (!P.session) return;
+  const g = P.session; P.session = null;
+  g.gain.setTargetAtTime(0, ctx.currentTime, 0.015);
+  setTimeout(() => g.disconnect(), 300);
+}
+
+function schedulePass(fromBeat, t0) {
+  for (const e of parsed.playable) {
+    if (e.start < fromBeat - 1e-6) continue;
+    const t = t0 + (e.start - fromBeat) * P.spb;
+    const bar = barByMidi.get(e.midi);
+    addStrike(bar, t);
+    voice(e.midi, t, P.session);
+  }
+  if (state.metro) {
+    for (let b = Math.ceil(fromBeat - 1e-6); b < parsed.totalBeats - 1e-6; b++) tick(t0 + (b - fromBeat) * P.spb, P.session);
+  }
+}
+
+function play(fromBeat) {
+  ensureAudio();
+  if (!parsed.playable.length) return;
+  if (fromBeat >= parsed.totalBeats - 1e-6) fromBeat = 0;
+  killSession();
+  clearFutureStrikes(vnow());
+  P.spb = 60 / curSong().tempo;
+  P.session = newSession();
+  const t0 = ctx.currentTime + 0.35;
+  schedulePass(fromBeat, t0);
+  Object.assign(P, { playing: true, passStart: t0, fromBeat, endT: t0 + (parsed.totalBeats - fromBeat) * P.spb, nextPass: null });
+  syncButtons();
+}
+
+function currentBeat(t) { return P.fromBeat + (t - P.passStart) / P.spb; }
+
+function pause() {
+  if (!P.playing) return;
+  const b = currentBeat(vnow());
+  P.pausedBeat = Math.max(0, Math.min(parsed.totalBeats, b));
+  killSession();
+  clearFutureStrikes(vnow());
+  P.playing = false; P.nextPass = null;
+  stepPtr = parsed.playable.findIndex(e => e.start >= P.pausedBeat - 1e-6);
+  if (stepPtr < 0) stepPtr = parsed.playable.length;
+  syncButtons();
+}
+
+function stopAll() {
+  pause();
+  P.pausedBeat = 0; stepPtr = 0;
+  setActive(null);
+  document.getElementById('strip').scrollTo({ left: 0, behavior: 'smooth' });
+}
+
+function togglePlay() { if (P.playing) pause(); else play(P.pausedBeat); }
+
+function liveHit(bar) {
+  ensureAudio();
+  const t = ctx.currentTime + 0.07;
+  addStrike(bar, t);
+  voice(bar.midi, t, liveBus);
+}
+function manualHit(bar) { liveHit(bar); }
+
+function stepNext() {
+  ensureAudio();
+  if (P.playing) pause();
+  const pe = parsed.playable;
+  if (!pe.length) return;
+  if (stepPtr >= pe.length) stepPtr = 0;
+  const e = pe[stepPtr];
+  liveHit(barByMidi.get(e.midi));
+  setActive(e.token);
+  P.pausedBeat = e.start + e.dur;
+  stepPtr++;
+}
+function stepPrev() {
+  if (P.playing) pause();
+  stepPtr = Math.max(0, stepPtr - 2);
+  stepNext();
+}
+
+/* ═════════ 9. 악보줄 ═════════ */
+const strip = document.getElementById('strip');
+let timedTokens = [], activeTok = null;
+
+function renderStrip() {
+  strip.innerHTML = '';
+  activeTok = null;
+  if (!parsed.tokens.some(t => t.start != null)) {
+    const p = document.createElement('span');
+    p.className = 'empty';
+    p.textContent = '편집에서 계이름을 입력하세요';
+    strip.appendChild(p);
+  }
+  let grp = null;
+  for (const tk of parsed.tokens) {
+    if (tk.k === 'gs') { grp = document.createElement('span'); grp.className = 'grp'; strip.appendChild(grp); continue; }
+    if (tk.k === 'ge') { grp = null; continue; }
+    const node = document.createElement('span');
+    if (tk.k === 'bar') node.className = 'sep';
+    else if (tk.k === 'nl') node.className = 'sep line';
+    else if (tk.k === 'para') node.className = 'sep para';
+    else {
+      let label = '', color = 'transparent', cls = 'tk ' + tk.k;
+      if (tk.k === 'note') {
+        label = tk.label;
+        if (tk.oct > 0) cls += ' hi';
+        if (tk.oct < 0) cls += ' lo';
+        if (tk.bar) color = tk.bar.color; else cls += ' err';
+      } else if (tk.k === 'rest') label = '쉼';
+      else if (tk.k === 'hold') label = '–';
+      else if (tk.k === 'err') { label = tk.text; cls = 'tk err'; }
+      node.className = cls;
+      const nm = document.createElement('span'); nm.textContent = label;
+      const sw = document.createElement('i'); sw.className = 'sw'; sw.style.background = color;
+      node.append(nm, sw);
+    }
+    tk.el = node;
+    node._tk = tk;
+    (grp || strip).appendChild(node);
+  }
+  timedTokens = parsed.tokens.filter(t => t.start != null);
+  timedTokens.forEach((t, i) => { t.idx = i; });
+  strip.scrollLeft = 0;
+  syncSlider();
+}
+
+/* 악보줄 이동: 끌기 · 휠 · 슬라이더, 계이름 클릭 = 그 음부터 재생 */
+const slider = document.getElementById('stripSlider');
+let drag = null, userScrollT = -1e9;
+const maxScroll = () => Math.max(0, strip.scrollWidth - strip.clientWidth);
+const userScrolling = () => drag !== null || performance.now() - userScrollT < 2500;
+
+function syncSlider() {
+  const m = maxScroll();
+  slider.hidden = m <= 0;
+  slider.value = m > 0 ? Math.round(strip.scrollLeft / m * 1000) : 0;
+}
+strip.addEventListener('scroll', syncSlider, { passive: true });
+window.addEventListener('resize', syncSlider);
+slider.addEventListener('input', () => {
+  userScrollT = performance.now();
+  strip.scrollTo({ left: slider.value / 1000 * maxScroll(), behavior: 'instant' });
+});
+
+strip.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  drag = { x: e.clientX, left: strip.scrollLeft, moved: false, id: e.pointerId };
+});
+strip.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x;
+  if (!drag.moved && Math.abs(dx) > 6) {
+    drag.moved = true;
+    strip.setPointerCapture(drag.id);
+    strip.classList.add('dragging');
+  }
+  if (drag.moved) {
+    strip.scrollTo({ left: drag.left - dx, behavior: 'instant' });
+    userScrollT = performance.now();
+    syncSlider();
+  }
+});
+strip.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const moved = drag.moved;
+  drag = null;
+  strip.classList.remove('dragging');
+  if (moved) return;
+  const el = e.target.closest('.tk');
+  if (el && el._tk && el._tk.start != null) playFromToken(el._tk);
+});
+strip.addEventListener('pointercancel', () => { drag = null; strip.classList.remove('dragging'); userScrollT = performance.now(); });
+strip.addEventListener('wheel', e => {
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+  e.preventDefault();
+  userScrollT = performance.now();
+  strip.scrollTo({ left: strip.scrollLeft + e.deltaY, behavior: 'instant' });
+  syncSlider();
+}, { passive: false });
+
+function playFromToken(tk) {
+  const b = tk.k === 'hold' && tk.ev ? tk.ev.start : tk.start;
+  userScrollT = -1e9;
+  setActive(tk);
+  play(b);
+}
+
+function setActive(tk) {
+  if (tk === activeTok) return;
+  if (activeTok && activeTok.el) activeTok.el.classList.remove('now');
+  activeTok = tk;
+  const ai = tk ? tk.idx : -1;
+  for (const t of timedTokens) t.el.classList.toggle('past', ai >= 0 && t.idx < ai);
+  if (tk && tk.el) {
+    tk.el.classList.add('now');
+    if (userScrolling()) return;
+    const left = tk.el.offsetLeft;
+    strip.scrollTo({ left: left - strip.clientWidth / 2 + tk.el.offsetWidth / 2, behavior: 'smooth' });
+  }
+}
+
+function tokenAtBeat(b) {
+  let lo = 0, hi = timedTokens.length - 1, ans = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (timedTokens[m].start <= b + 1e-6) { ans = m; lo = m + 1; } else hi = m - 1; }
+  if (ans < 0) return null;
+  const t = timedTokens[ans];
+  return b < t.start + t.dur ? t : null;
+}
+
+/* ═════════ 10. 화면 갱신 루프 ═════════ */
+let lastT = 0;
+function frame() {
+  const t = vnow();
+  for (const s of allStrikes) if (s.t > lastT && s.t <= t) flashBar(s.bar);
+  if (allStrikes.length > 200) allStrikes = allStrikes.filter(s => s.t > t - 1);
+  for (const H of [hands.L, hands.R]) {
+    while (H.strikes.length > 1 && H.strikes[1].t < t - 1) H.strikes.shift();
+  }
+  lastT = t;
+  drawMallet(hands.L, malletState(hands.L, t));
+  drawMallet(hands.R, malletState(hands.R, t));
+
+  if (P.playing) {
+    if (state.loop && !P.nextPass && ctx.currentTime > P.endT - 0.8) {
+      const t1 = P.endT + P.spb;
+      schedulePass(0, t1);
+      P.nextPass = { t: t1 };
+    }
+    if (P.nextPass && t >= P.nextPass.t) {
+      P.passStart = P.nextPass.t; P.fromBeat = 0;
+      P.endT = P.passStart + parsed.totalBeats * P.spb;
+      P.nextPass = null;
+    }
+    if (!P.nextPass && t >= P.endT + 0.05) {
+      P.playing = false; P.pausedBeat = 0; stepPtr = 0;
+      P.session = null;
+      setActive(null);
+      syncButtons();
+    } else {
+      const b = currentBeat(t);
+      if (b >= P.fromBeat) setActive(tokenAtBeat(b));
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ═════════ 11. 화면 요소 연결 ═════════ */
+const $ = id => document.getElementById(id);
+const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>';
+
+function syncButtons() {
+  $('btnPlay').innerHTML = P.playing ? ICON_PAUSE + '일시정지' : ICON_PLAY + '재생';
+  $('btnPlay').setAttribute('aria-label', P.playing ? '일시정지' : '재생');
+}
+
+function refreshSong() {
+  const song = curSong();
+  parsed = parse(song.text);
+  $('songTitle').textContent = song.title || '제목 없음';
+  renderStrip();
+  P.pausedBeat = 0; stepPtr = 0;
+  const errs = $('errs');
+  errs.innerHTML = '';
+  parsed.errors.slice(0, 8).forEach(e => {
+    const li = document.createElement('li');
+    li.textContent = `${e.line}줄: '${e.text}' — ${e.msg}`;
+    errs.appendChild(li);
+  });
+  if (parsed.errors.length > 8) {
+    const li = document.createElement('li'); li.textContent = `그 밖에 ${parsed.errors.length - 8}개`; errs.appendChild(li);
+  }
+  $('info').textContent = parsed.errors.length ? '틀린 부분은 건너뛰고 연주해요.' : '바르게 입력되었어요.';
+}
+
+function renderChips() {
+  const box = $('chips');
+  box.innerHTML = '';
+  for (const s of state.songs) {
+    const b = document.createElement('button');
+    b.className = 'chip' + (s.id === state.cur ? ' on' : '');
+    b.textContent = s.title || '제목 없음';
+    b.addEventListener('click', () => selectSong(s.id));
+    box.appendChild(b);
+  }
+  const add = document.createElement('button');
+  add.className = 'chip add';
+  add.textContent = '+ 새 곡';
+  add.addEventListener('click', newSong);
+  box.appendChild(add);
+}
+
+function fillEditor() {
+  const s = curSong();
+  $('titleIn').value = s.title;
+  $('textIn').value = s.text;
+  $('tempo').value = s.tempo;
+  $('tempoVal').textContent = s.tempo;
+  const isDefault = DEFAULT_SONGS.some(d => d.id === s.id);
+  $('btnRestore').hidden = !isDefault;
+  $('btnDelete').hidden = isDefault;
+}
+
+function selectSong(id) {
+  stopAll();
+  state.cur = id; save();
+  renderChips(); fillEditor(); refreshSong();
+}
+
+function newSong() {
+  const s = { id: 'c' + Date.now(), title: '새 곡', tempo: 90, text: '' };
+  state.songs.push(s);
+  selectSong(s.id);
+  $('titleIn').focus(); $('titleIn').select();
+}
+
+let editTimer = 0;
+$('textIn').addEventListener('input', () => {
+  if (P.playing) stopAll();
+  curSong().text = $('textIn').value; save();
+  clearTimeout(editTimer);
+  editTimer = setTimeout(refreshSong, 200);
+});
+$('titleIn').addEventListener('input', () => {
+  curSong().title = $('titleIn').value; save();
+  $('songTitle').textContent = curSong().title || '제목 없음';
+  renderChips();
+});
+$('tempo').addEventListener('input', () => {
+  curSong().tempo = +$('tempo').value; save();
+  $('tempoVal').textContent = curSong().tempo;
+});
+$('tempo').addEventListener('change', () => {
+  if (P.playing) { const b = currentBeat(vnow()); pause(); play(Math.max(0, b)); }
+});
+function bindSwitch(id, key) {
+  const el = $(id);
+  el.setAttribute('aria-checked', String(!!state[key]));
+  el.addEventListener('click', () => {
+    state[key] = !state[key]; save();
+    el.setAttribute('aria-checked', String(state[key]));
+    if (key === 'metro' && P.playing) { const b = currentBeat(vnow()); pause(); play(Math.max(0, b)); }
+  });
+}
+bindSwitch('swMetro', 'metro');
+bindSwitch('swLoop', 'loop');
+
+$('btnRestore').addEventListener('click', () => {
+  const d = DEFAULT_SONGS.find(x => x.id === state.cur);
+  if (!d) return;
+  Object.assign(curSong(), clone(d)); save();
+  stopAll(); renderChips(); fillEditor(); refreshSong();
+});
+$('btnDelete').addEventListener('click', () => {
+  const s = curSong();
+  if (!confirm(`'${s.title || '제목 없음'}' 곡을 지울까요?`)) return;
+  state.songs = state.songs.filter(x => x.id !== s.id);
+  selectSong(state.songs[0].id);
+});
+
+function openPanel() {
+  $('panel').classList.add('open'); $('scrim').classList.add('open');
+  $('panel').setAttribute('aria-hidden', 'false');
+  fillEditor();
+}
+function closePanel() {
+  $('panel').classList.remove('open'); $('scrim').classList.remove('open');
+  $('panel').setAttribute('aria-hidden', 'true');
+  document.activeElement && document.activeElement.blur();
+}
+const panelOpen = () => $('panel').classList.contains('open');
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {});
+  else document.exitFullscreen && document.exitFullscreen();
+}
+document.addEventListener('fullscreenchange', () => document.body.classList.toggle('fs', !!document.fullscreenElement));
+
+$('btnPlay').addEventListener('click', togglePlay);
+$('btnHome').addEventListener('click', stopAll);
+$('btnPrev').addEventListener('click', stepPrev);
+$('btnNext').addEventListener('click', stepNext);
+$('btnEdit').addEventListener('click', openPanel);
+$('btnFull').addEventListener('click', toggleFullscreen);
+$('btnClose').addEventListener('click', closePanel);
+$('btnApply').addEventListener('click', closePanel);
+$('scrim').addEventListener('click', closePanel);
+
+// 마우스·터치로 누른 버튼은 포커스를 풀어 스페이스바가 두 번 눌리지 않게 함
+document.addEventListener('pointerup', e => {
+  const b = e.target.closest && e.target.closest('button');
+  if (b && e.pointerType !== '') setTimeout(() => b.blur(), 0);
+});
+
+document.addEventListener('keydown', e => {
+  const tag = e.target.tagName;
+  if (tag === 'TEXTAREA' || tag === 'INPUT') { if (e.key === 'Escape') closePanel(); return; }
+  if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  let handled = true;
+  switch (e.key) {
+    case ' ': togglePlay(); break;
+    case 'ArrowRight': case 'ArrowDown': case 'PageDown': stepNext(); break;
+    case 'ArrowLeft': case 'ArrowUp': case 'PageUp': stepPrev(); break;
+    case 'Home': stopAll(); break;
+    case 'Escape': if (panelOpen()) closePanel(); else stopAll(); break;
+    case 'f': case 'F': case 'ㄹ': toggleFullscreen(); break;
+    case 'e': case 'E': case 'ㄷ': panelOpen() ? closePanel() : openPanel(); break;
+    default: handled = false;
+  }
+  if (handled) e.preventDefault();
+});
+
+/* ═════════ 12. 시작 ═════════ */
+buildXylophone();
+renderChips();
+fillEditor();
+refreshSong();
+syncButtons();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
